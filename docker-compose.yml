@@ -1,0 +1,44 @@
+version: "3.7"
+
+services:
+  carlemany-backend:
+    build:
+      context: .
+      target: carlemany-backend-base
+    volumes:
+      - type: bind
+        source: .
+        target: /carlemany-backend
+    ports:
+      - "8000:80"
+    networks:
+      - carlemany-net
+
+  black:
+    image: carlemany-backend-base:latest
+    volumes:
+      - type: bind
+        source: ./
+        target: /carlemany-backend
+        read_only: true
+    entrypoint: sh -c "black --config .black --check --diff ."
+
+  test: &test
+    image: carlemany-backend-dev:latest
+    env_file:
+     - .env
+    volumes:
+      - type: bind
+        source: ./
+        target: /carlemany-backend
+    networks:
+      - carlemany-net
+    entrypoint: pytest --maxfail=10
+
+  test-cov:
+    <<: *test
+    entrypoint: pytest --maxfail=10 --cov --cov-report=term --cov-report=html --junitxml=tests/test-results/junit.xml
+
+
+networks:
+  carlemany-net:
