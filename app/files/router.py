@@ -15,8 +15,9 @@ _files_store: dict[int, dict[str, Any]] = {}
 _next_file_id = 1
 
 # Local dictrionary to store theoretical files
-files_db = {}        # {file_id: {"name": str, "user_id": int, "description": str, "content": str}}
+files_db = {}  # {file_id: {"name": str, "user_id": int, "description": str, "content": str}}
 file_id_counter = 1
+
 
 class FileCreateInput(BaseModel):
     filename: str = Field(..., min_length=1, description="Visible filename for the file")
