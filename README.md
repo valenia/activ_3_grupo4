@@ -20,13 +20,13 @@ This project implements a complete HTTP API for a file storage system with user 
 docker-compose up carlemany-backend
 
 # Access the API
-# Swagger UI: http://localhost:8000/docs
+Swagger UI: http://localhost:8000/docs
 
 ## Authors
 
-Juan Gabriel Carvajal Franco
-María Elena Ventura Roldán
-Aina Muñoz Fernández
+- Juan Gabriel Carvajal Franco
+- María Elena Ventura Roldán
+- Aina Muñoz Fernández
 
 
 
