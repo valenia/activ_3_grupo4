@@ -11,13 +11,9 @@ from pypdf import PdfReader, PdfWriter
 
 router = APIRouter(tags=["files"])
 
+# Local dictrionary to store theoretical files
 _files_store: dict[int, dict[str, Any]] = {}
 _next_file_id = 1
-
-# Local dictrionary to store theoretical files
-files_db = {}  # {file_id: {"name": str, "user_id": int, "description": str, "content": str}}
-file_id_counter = 1
-
 
 class FileCreateInput(BaseModel):
     filename: str = Field(..., min_length=1, description="Visible filename for the file")
@@ -149,7 +145,53 @@ def _get_owned_file(file_id: int, owner_external_id: str) -> dict[str, Any]:
     return stored_file
 
 
-@router.get("", response_model=list[FileSummary], summary="List files")
+@router.get(
+    "", 
+    response_model=list[FileSummary], 
+    summary="List files",
+    description="""
+    Retrieves all files belonging to the authenticated user.
+    
+    Features:
+    - Returns only files owned by the user (filtered by token)
+    - Files are ordered by ID
+    - Includes basic metadata without content
+    
+    Required headers:
+    - Auth: Session token obtained from login
+    
+    Response:
+    List of files with summary information (no content)
+    """,
+    responses={
+        200: {
+            "description": "List of user files",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": 1,
+                            "filename": "document.pdf",
+                            "description": "My document",
+                            "content_type": "application/pdf",
+                            "has_content": True,
+                            "owner_external_id": "user123",
+                            "created_at": "2026-03-15T10:00:00Z",
+                            "updated_at": "2026-03-15T10:00:00Z"
+                        }
+                    ]
+                }
+            }
+        },
+        401: {
+            "description": "Invalid or missing token",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid token"}
+                }
+            }
+        }
+    })
 async def files_get(auth: str | None = Header(default=None, alias="Auth")) -> list[FileSummary]:
     owner_external_id = _authenticated_user_id(auth)
     user_files = [
@@ -165,6 +207,50 @@ async def files_get(auth: str | None = Header(default=None, alias="Auth")) -> li
     response_model=FileIdResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create file metadata",
+    description="""
+    Creates a new file entry in the system (metadata only).
+    
+    Two-step process:
+    1. This endpoint creates the file record (without content)
+    2. Then use `POST /files/{id}` to upload the content
+    
+    Required headers:
+    - Auth: Session token obtained from login
+    
+    Input fields:
+    - `filename`: Visible filename (required)
+    - `description`: Optional description
+    - `content_type`: MIME type (e.g., application/pdf)
+    
+    Response:
+    ID of the created file (use this to upload content later)
+    """,
+    responses={
+        201: {
+            "description": "File created successfully",
+            "content": {
+                "application/json": {
+                    "example": {"id": 42}
+                }
+            }
+        },
+        401: {
+            "description": "Invalid token",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid token"}
+                }
+            }
+        },
+        422: {
+            "description": "Invalid input data",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "filename must have at least 1 character"}
+                }
+            }
+        }
+    }
 )
 async def files_post(
     payload: FileCreateInput,
@@ -191,6 +277,75 @@ async def files_post(
     response_model=FileIdResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Merge two PDF files",
+    description="""
+    Merges two PDF files into a new one.
+    
+    Requirements:
+    - Both files must exist and belong to the user
+    - Both files must have content uploaded
+    - Both files must be valid PDFs
+    
+    Required headers:
+    - Auth: Session token obtained from login
+    
+    Process:
+    1. Validates that both files exist and are PDFs
+    2. Merges pages in order (first file_id_1, then file_id_2)
+    3. Creates a new file with the result
+    
+    Response:
+    ID of the newly merged file
+    """,
+    responses={
+        201: {
+            "description": "Files merged successfully",
+            "content": {
+                "application/json": {
+                    "example": {"id": 43}
+                }
+            }
+        },
+        401: {
+            "description": "Invalid token",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid token"}
+                }
+            }
+        },
+        403: {
+            "description": "Access denied",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Access denied"}
+                }
+            }
+        },
+        404: {
+            "description": "File not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "File not found"}
+                }
+            }
+        },
+        409: {
+            "description": "Files without content",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Both files must have content before merge"}
+                }
+            }
+        },
+        422: {
+            "description": "Invalid PDF",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Both file contents must be valid PDF documents"}
+                }
+            }
+        }
+    }
 )
 async def files_merge_post(
     payload: MergeInput,
@@ -240,7 +395,68 @@ async def files_merge_post(
     return FileIdResponse(id=file_id)
 
 
-@router.get("/{id}", response_model=FileDetail, summary="Get file detail")
+@router.get(
+    "/{id}", 
+    response_model=FileDetail, 
+    summary="Get file detail",
+    description="""
+    Retrieves complete file information, including content.
+    
+    Required headers:
+    - Auth: Session token obtained from login
+    
+    Parameters:
+    - `id`: ID of the file to retrieve
+    
+    Response:
+    - Complete file metadata
+    - Content in base64 (if exists)
+    """,
+    responses={
+        200: {
+            "description": "File found",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "filename": "document.pdf",
+                        "description": "My document",
+                        "content_type": "application/pdf",
+                        "has_content": True,
+                        "owner_external_id": "user123",
+                        "created_at": "2026-03-15T10:00:00Z",
+                        "updated_at": "2026-03-15T10:00:00Z",
+                        "content_base64": "JVBERi0xLjQKJcOkw7zD..."
+                    }
+                }
+            }
+        },
+        401: {
+            "description": "Invalid token",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid token"}
+                }
+            }
+        },
+        403: {
+            "description": "Access denied",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Access denied"}
+                }
+            }
+        },
+        404: {
+            "description": "File not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "File not found"}
+                }
+            }
+        }
+    }
+)
 async def files_id_get(
     id: int,
     auth: str | None = Header(default=None, alias="Auth"),
@@ -252,7 +468,72 @@ async def files_id_get(
     return FileDetail(**summary.model_dump(), content_base64=file_data["content_base64"])
 
 
-@router.post("/{id}", status_code=status.HTTP_200_OK, summary="Upload file content")
+@router.post(
+    "/{id}", 
+    status_code=status.HTTP_200_OK, 
+    summary="Upload file content",
+    description="""
+    Uploads content for an existing file.
+    
+    Required headers:
+    - Auth: Session token obtained from login
+    
+    Parameters:
+    - `id`: ID of the file to upload content to
+    
+    Request body:
+    - `content_base64`: File content encoded in base64
+    
+    Special behavior:
+    - If the file has no `content_type` defined and the content starts with %PDF,
+      it automatically assigns `application/pdf`
+    
+    Response:
+    Success confirmation
+    """,
+    responses={
+        200: {
+            "description": "Content uploaded successfully",
+            "content": {
+                "application/json": {
+                    "example": {"status": "ok"}
+                }
+            }
+        },
+        401: {
+            "description": "Invalid token",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid token"}
+                }
+            }
+        },
+        403: {
+            "description": "Access denied",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Access denied"}
+                }
+            }
+        },
+        404: {
+            "description": "File not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "File not found"}
+                }
+            }
+        },
+        422: {
+            "description": "Invalid base64",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid base64 payload"}
+                }
+            }
+        }
+    }
+)
 async def files_id_post(
     id: int,
     payload: FileContentInput,
@@ -270,7 +551,60 @@ async def files_id_post(
     return {"status": "ok"}
 
 
-@router.delete("/{id}", status_code=status.HTTP_200_OK, summary="Delete file")
+@router.delete(
+    "/{id}", 
+    status_code=status.HTTP_200_OK, 
+    summary="Delete file",
+    description="""
+    Permanently deletes a file.
+    
+    Required headers:
+    - Auth: Session token obtained from login
+    
+    Parameters:
+    - `id`: ID of the file to delete
+    
+    Important:
+    This operation is irreversible. The file is completely removed from the system.
+    
+    Response:
+    Deletion confirmation
+    """,
+    responses={
+        200: {
+            "description": "File deleted",
+            "content": {
+                "application/json": {
+                    "example": {"status": "deleted"}
+                }
+            }
+        },
+        401: {
+            "description": "Invalid token",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid token"}
+                }
+            }
+        },
+        403: {
+            "description": "Access denied",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Access denied"}
+                }
+            }
+        },
+        404: {
+            "description": "File not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "File not found"}
+                }
+            }
+        }
+    }
+)
 async def files_id_delete(
     id: int,
     auth: str | None = Header(default=None, alias="Auth"),

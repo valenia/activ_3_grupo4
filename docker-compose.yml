@@ -4,7 +4,8 @@ services:
   carlemany-backend:
     build:
       context: .
-      target: carlemany-backend-dev
+      target: carlemany-backend-base
+    image: carlemany-backend-base:latest  # add this to tag the image
     volumes:
       - type: bind
         source: .
