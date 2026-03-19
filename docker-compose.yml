@@ -1,6 +1,27 @@
-version: "3.7"
 
 services:
+  postgres:
+    image: postgres:13.4-alpine3.14
+    environment:
+      - POSTGRES_DB=${PSQL_DB_DATABASE}
+      - POSTGRES_USER=${PSQL_DB_USERNAME}
+      - POSTGRES_PASSWORD=${PSQL_DB_PASSWORD}
+    env_file:
+      - .env
+    volumes:
+      - type: volume
+        source: carlemany-backend-data
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -d ${PSQL_DB_DATABASE} -U ${PSQL_DB_USERNAME}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+    networks:
+      - carlemany-net
+
   carlemany-backend:
     build:
       context: .
@@ -16,8 +37,60 @@ services:
       - "8000:80"
     env_file:
       - .env
+    depends_on:
+      postgres
     networks:
       - carlemany-net
+
+  # Migration services
+  make_migrations:
+    build:
+      context: .
+      target: carlemany-backend-base
+    env_file:
+      - .env
+    volumes:
+      - type: bind
+        source: .
+        target: /carlemany-backend
+    networks:
+      - carlemany-net
+    depends_on:
+      - postgres
+    entrypoint: aerich migrate
+
+  migrate:
+    build:
+      context: .
+      target: carlemany-backend-base
+    env_file:
+      - .env
+    volumes:
+      - type: bind
+        source: .
+        target: /carlemany-backend
+    networks:
+      - carlemany-net
+    depends_on:
+      - postgres
+    entrypoint: aerich upgrade
+
+  init_db:
+    build:
+      context: .
+      target: carlemany-backend-base
+    env_file:
+      - .env
+    volumes:
+      - type: bind
+        source: .
+        target: /carlemany-backend
+    networks:
+      - carlemany-net
+    # this makes that before initialize init_db it is need to execute postgres
+    depends_on:
+      - postgres
+    entrypoint: sh infra/init_db.sh
 
   black:
     build:
@@ -60,3 +133,6 @@ services:
 
 networks:
   carlemany-net:
+
+volumes:
+  postgres_data:

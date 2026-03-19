@@ -1,4 +1,4 @@
-# Cloud Computing - Activity 2: File Storage API
+# Cloud Computing - Activity 3: File Storage API
 
 This project implements a complete HTTP API for a file storage system with user authentication. Built with FastAPI and containerized with Docker
 
@@ -21,6 +21,18 @@ docker-compose up carlemany-backend
 
 # Access the API
 Swagger UI: http://localhost:8000/docs
+
+# Requirements
+
+fastapi==0.100.1
+pypdf==6.8.0
+python-multipart==0.0.9
+aiohttp==3.11.13
+requests==2.32.3
+pydantic_settings==2.0.0
+aerich==0.6.3
+tortoise-orm==0.19.3
+asyncpg==0.28.0
 
 ## Authors
 
