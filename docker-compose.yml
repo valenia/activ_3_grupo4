@@ -38,7 +38,7 @@ services:
     env_file:
       - .env
     depends_on:
-      postgres
+      - postgres
     networks:
       - carlemany-net
 
@@ -135,4 +135,5 @@ networks:
   carlemany-net:
 
 volumes:
+  carlemany-backend-data:
   postgres_data:
