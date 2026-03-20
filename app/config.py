@@ -6,6 +6,7 @@ class PostgresSettings(BaseSettings):
     username: str
     password: str
     host: str
+    port: int
     database: str
 
 postgres_settings = PostgresSettings()
@@ -19,4 +20,4 @@ DATABASE_URL = "postgres://{}:{}@{}:{}/{}".format(
     postgres_settings.database,
 )
 
-models = ["app.authentication.models", "aerich.models"]
+models = ["app.authentication.models", "app.files.models", "aerich.models"]
