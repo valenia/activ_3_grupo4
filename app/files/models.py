@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 from tortoise import fields, models
 
 
@@ -14,6 +13,3 @@ class StoredFile(models.Model):
 
     class Meta:
         table = "stored_files"
-=======
-# TODO: models tortoise for Files endpoints
->>>>>>> origin/main
